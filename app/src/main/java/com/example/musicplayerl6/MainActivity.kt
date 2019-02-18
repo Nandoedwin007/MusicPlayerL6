@@ -18,9 +18,13 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.BoringLayout
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.MediaController.MediaPlayerControl;
+
 
 import com.example.musicplayerl6.MusicService.MusicBinder
 import java.util.jar.Manifest
@@ -30,13 +34,91 @@ import java.util.jar.Manifest
 // https://code.tutsplus.com/tutorials/create-a-music-player-on-android-project-setup--mobile-22764
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(),MediaPlayerControl {
+
+    var songTitle:String = ""
+
+    //notification id
+    var NOTIFY_ID = 1
+
+    var paused:Boolean = false
+    var playbackPaused:Boolean = false
+
+    override fun canSeekForward(): Boolean {
+        return true;
+    }
+
+    override fun getDuration(): Int {
+        if(musicSrv!=null && musicBound && musicSrv.isPng())
+            return musicSrv.getDur();
+        else return 0;
+    }
+
+    override fun pause() {
+        playbackPaused=true;
+        musicSrv.pausePlayer();
+    }
+
+    override fun getBufferPercentage(): Int {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun seekTo(pos: Int) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getCurrentPosition(): Int {
+        if(musicSrv!=null && musicBound && musicSrv.isPng())
+            return musicSrv.getPosn();
+        else return 0;
+    }
+
+    override fun canSeekBackward(): Boolean {
+        return true
+    }
+
+    override fun start() {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getAudioSessionId(): Int {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun canPause(): Boolean {
+        return true;
+    }
+
+    override fun isPlaying(): Boolean {
+        if(musicSrv!=null && musicBound)
+            return musicSrv.isPng();
+        return false;
+    }
 
     var songList:ArrayList<Song> = ArrayList()
     var musicSrv:MusicService = MusicService()
     var playIntent:Intent = Intent()
     var musicBound:Boolean = false
     lateinit var songView:ListView
+
+    lateinit var controller:MusicController
+
+    fun setController() {
+        controller = MusicController(this)
+
+        controller.setPrevNextListeners(object:View.OnClickListener {
+            override fun onClick(v:View) {
+                playNext()
+            }
+        }, object:View.OnClickListener {
+            override fun onClick(v:View) {
+                playPrev()
+            }
+        })
+        controller.setMediaPlayer(this)
+        controller.setAnchorView(findViewById(R.id.song_list))
+        controller.setEnabled(true)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,12 +135,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val songView:ListView = findViewById<ListView>(R.id.song_list)
+        songView = findViewById<ListView>(R.id.song_list)
 
         //var songList
-        var songList = ArrayList<Song>()
+        songList = ArrayList<Song>()
 
         getSongList()
+        setController()
 
         Collections.sort(songList, object:Comparator<Song> {
             override fun compare(a:Song, b:Song):Int {
@@ -72,24 +155,25 @@ class MainActivity : AppCompatActivity() {
 
 
 
-
     }
 
-//    lateinit var musicConnection:ServiceConnection
-//
-//    fun onServiceConnected(name:ComponentName,service:IBinder){
-//        var binder:MusicService.MusicBinder = service as MusicService.MusicBinder
-//        //get service
-//        musicSrv = binder.service
-//        //pass list
-//        musicSrv.setList(songList)
-//        musicBound = true
-//    }
-//    fun onServiceDisconnected(name:ComponentName){
-//        musicBound = false
-//
-//    }
+    override fun onPause() {
+        super.onPause()
+        paused = true
+    }
 
+    override fun onResume() {
+        super.onResume()
+        if (paused){
+            setController()
+            paused = false
+        }
+    }
+
+    override fun onStop() {
+        controller.hide()
+        super.onStop()
+    }
     //connect to the service
     private val musicConnection = object:ServiceConnection {
         override fun onServiceConnected(name:ComponentName, service:IBinder) {
@@ -121,16 +205,25 @@ class MainActivity : AppCompatActivity() {
     fun songPicked(view:View) {
         musicSrv.setSong(Integer.parseInt(view.getTag().toString()))
         musicSrv.playSong()
+        if(playbackPaused){
+            setController();
+            playbackPaused=false;
+        }
+        controller.show(0);
     }
     override fun onCreateOptionsMenu(menu: Menu):Boolean {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu)
         return true
     }
+
+
     override fun onOptionsItemSelected(item:MenuItem):Boolean {
         //menu item selected
         when (item.getItemId()) {
-            R.id.action_shuffle -> {}
+            R.id.action_shuffle -> {
+                musicSrv.setShuffle()
+            }
             R.id.action_end -> {
                 stopService(playIntent)
                 musicSrv = null!!
@@ -144,10 +237,11 @@ class MainActivity : AppCompatActivity() {
         //retrieve song info
         val musicResolver:ContentResolver = contentResolver
         val musicUri:Uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val musicUri2:Uri = android.provider.MediaStore.Audio.Media.INTERNAL_CONTENT_URI
         val musicCursor:Cursor = musicResolver.query(musicUri,null,null,null)
 
 
-        if(musicCursor.moveToFirst()) {
+        if(musicCursor != null && musicCursor.moveToFirst()) {
             val titleColumn: Int = musicCursor.getColumnIndex(android.provider.MediaStore.Audio.Media.TITLE)
             val idColumn: Int = musicCursor.getColumnIndex(android.provider.MediaStore.Audio.Media._ID)
             val artistColumn: Int = musicCursor.getColumnIndex(android.provider.MediaStore.Audio.Media.ARTIST)
@@ -155,6 +249,7 @@ class MainActivity : AppCompatActivity() {
             do{
                 val thisId:Long = musicCursor.getLong(idColumn)
                 val thisTitle:String = musicCursor.getString(titleColumn)
+                Log.d("Cancion: ",thisTitle)
                 val thisArtist:String = musicCursor.getString(artistColumn)
                 songList.add(Song(thisId, thisTitle,thisArtist))
 
@@ -169,6 +264,28 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
 
     }
+
+    //play next
+    private fun playNext() {
+        musicSrv.playNext()
+        if(playbackPaused){
+            setController();
+            playbackPaused=false;
+        }
+        controller.show(0)
+    }
+
+    //play previous
+    private fun playPrev() {
+        musicSrv.playPrev()
+        if(playbackPaused){
+            setController();
+            playbackPaused=false;
+        }
+        controller.show(0)
+    }
+
+
 
 
 }

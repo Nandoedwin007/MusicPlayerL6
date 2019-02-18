@@ -22,15 +22,15 @@ class SongAdapter(c:Context,theSongs:ArrayList<Song>):BaseAdapter() {
 
 
     override fun getCount():Int {
-        return 0
+        return songs.size
     }
 
-    override fun getItem(position: Int): Any {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun getItem(position: Int): Any? {
+        return null
     }
 
     override fun getItemId(position: Int): Long {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return 0
     }
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
