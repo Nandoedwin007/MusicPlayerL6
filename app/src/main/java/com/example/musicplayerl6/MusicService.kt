@@ -17,11 +17,12 @@ import java.util.*
 import java.util.Random;
 import android.app.Notification;
 import android.app.PendingIntent;
+import android.content.Context
 
 
-class MusicService:Service(), MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, MediaPlayer.OnCompletionListener {
+class MusicService():Service(), MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, MediaPlayer.OnCompletionListener {
     //media player
-    lateinit var player:MediaPlayer
+    var player:MediaPlayer = MediaPlayer()
     //song list
     lateinit var songs:ArrayList<Song>
     //current position
@@ -46,17 +47,15 @@ class MusicService:Service(), MediaPlayer.OnPreparedListener, MediaPlayer.OnErro
         //initialize position
         songPosn = 0
         //create player
-        player = MediaPlayer()
+        //player = MediaPlayer()
         //initialize
         initMusicPlayer()
     }
     fun initMusicPlayer() {
         //set player properties
-        player.run {
-            setWakeMode(getApplicationContext(),
-                PowerManager.PARTIAL_WAKE_LOCK)
-            setAudioStreamType(AudioManager.STREAM_MUSIC)
-        }
+        player.setWakeMode(getApplicationContext(),
+            PowerManager.PARTIAL_WAKE_LOCK);
+        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
         //player.setAudioAttributes(STREAM_MUSIC)
         //set listeners
         player.setOnPreparedListener(this)
